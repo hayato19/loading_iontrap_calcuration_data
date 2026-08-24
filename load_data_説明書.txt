@@ -1,0 +1,120 @@
+load_data 読み取りコードセット 簡易説明書
+
+1. 概要
+このフォルダは、シミュレーション結果を読み込み、
+以下の3種類のグラフを再生成するためのコードセットです。
+
+・x-t グラフ
+・T-t グラフ
+・rho_int-delta グラフ
+
+各 run フォルダ内の metadata.json に保存された条件と、
+x.npy / v.npy / rho_int.npy / delta.npy などのデータを loading.py が読み取ります。
+
+サンプルとして run_20260824_104501 を同梱しています。
+このサンプルデータは、本番の出力構成と同等の完全なデータセットです。
+
+
+2. フォルダ構成
+
+load_data
+├─ loading.py
+├─ json_metadata_variables.xlsx
+└─ data
+   └─ run_20260824_104501
+      ├─ metadata.json
+      ├─ x.npy
+      ├─ v.npy
+      ├─ rho_ee.npy
+      ├─ rho_int.npy
+      └─ delta.npy
+
+※ json_metadata_variables.xlsx には、
+metadata.json に保存される各変数の意味・次元・型をまとめています。
+
+3. 必要な環境
+Python が実行でき、以下のモジュールをimport できる環境を想定しています。
+
+・NumPy
+・Matplotlib
+
+4. 基本的な使い方
+
+load_data フォルダを基準に、以下のように実行します。
+
+python loading.py data/run_20260824_104501
+
+実行すると、指定した run フォルダ内の metadata.json と各データファイルを読み込み、
+以下のグラフを生成します。
+
+・x-t
+・T-t
+・rho_int-delta
+
+生成した画像は、指定した run フォルダ内の figs フォルダに保存されます。
+
+例：
+
+data/run_20260824_104501/figs/
+
+
+5. rho_int-delta グラフの表示方法
+
+デフォルトでは、各粒子のスペクトルを個別に表示します。
+
+python loading.py data/run_20260824_104501
+
+これは以下と同等です。
+
+python loading.py data/run_20260824_104501 --rho-mode each
+
+全粒子の和を表示する場合：
+
+python loading.py data/run_20260824_104501 --rho-mode sum
+
+全粒子の平均を表示する場合：
+
+python loading.py data/run_20260824_104501 --rho-mode mean
+
+
+6. 別のシミュレーション結果を読む場合
+
+data フォルダ内に新しい run フォルダを置き、そのフォルダを指定して実行します。
+
+例：
+
+python loading.py data/run_YYYYMMDD_HHMMSS
+
+run フォルダ内には、少なくとも以下が必要です。
+
+・metadata.json
+・x.npy
+・v.npy
+・rho_int.npy
+・delta.npy
+
+7. metadata.json について
+
+metadata.json には、シミュレーション条件や各データファイル名が保存されています。
+
+主な内容：
+・粒子数 M
+・時間刻み dt
+・記録時間刻み dt_rec
+・乱数 seed
+・初期位置、初期速度
+・質量
+・トラップ周波数
+・冷却関連パラメータ
+・スペクトル計算条件
+・各 .npy ファイル名
+
+詳細は json_metadata_variables.xlsx を参照してください。
+
+8. サンプル確認
+
+まずは同梱のサンプルデータで、
+
+python loading.py data/run_20260824_104501
+
+を実行し、3種類のグラフが生成されることを確認してください。
