@@ -17,6 +17,18 @@ plt.rcParams["axes.unicode_minus"] = False
 plt.rcParams["font.size"] = 15
 
 
+# ======================================
+# MathematicaスペクトルCSV
+# CSVをloading.pyと同じフォルダに置き、
+# ファイル名だけここで変更する。
+# ======================================
+SPECTRUM_CSV_FILE = "newSpectrum.csv"
+SPECTRUM_CSV_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    SPECTRUM_CSV_FILE,
+)
+
+
 def load_metadata(run_dir):
     """
     runフォルダ内の metadata.json を読み込む。
@@ -71,6 +83,50 @@ def normalize_peak(y):
     return y / y_max
 
 
+def load_spectrum_csv(csv_path):
+    """
+    Mathematica から出力した2列CSVを読み込む。
+
+    1列目: 周波数差 [MHz]
+    2列目: 相対強度
+
+    相対強度は最大値が1になるように規格化して返す。
+    """
+    if not os.path.isfile(csv_path):
+        raise FileNotFoundError(
+            f"スペクトルCSVが見つかりません: {csv_path}"
+        )
+
+    data = np.loadtxt(
+        csv_path,
+        delimiter=",",
+        skiprows=1,
+    )
+    data = np.atleast_2d(data)
+
+    if data.shape[1] < 2:
+        raise ValueError(
+            f"CSV must have at least 2 columns: {csv_path}"
+        )
+
+    frequency_MHz = np.asarray(data[:, 0], dtype=float)
+    relative_intensity = np.asarray(data[:, 1], dtype=float)
+
+    mask = np.isfinite(frequency_MHz) & np.isfinite(relative_intensity)
+    frequency_MHz = frequency_MHz[mask]
+    relative_intensity = relative_intensity[mask]
+
+    if len(frequency_MHz) == 0:
+        raise ValueError(f"No valid spectrum data in CSV: {csv_path}")
+
+    order = np.argsort(frequency_MHz)
+    frequency_MHz = frequency_MHz[order]
+    relative_intensity = relative_intensity[order]
+    relative_intensity = normalize_peak(relative_intensity)
+
+    return frequency_MHz, relative_intensity
+
+
 def build_time_axis(n_points, dt_rec):
     """
     保存データの時間間隔 dt_rec から時間軸を再構成する。
@@ -83,6 +139,7 @@ def plot_rho_int_delta(
         delta,
         mode="each",
         save_dir="./figs",
+        spectrum_csv_path=None,
 ):
     """
     添付 load_rho_int.py の描画ロジックを利用しつつ、
@@ -90,6 +147,9 @@ def plot_rho_int_delta(
 
     delta は [rad/s] として保存されているため、
     delta / (2*pi) を Hz に変換し、さらに MHz にする。
+
+    spectrum_csv_path が指定された場合は、
+    Mathematicaスペクトルを最大値=1に規格化して同じ図に重ねる。
     """
     rho_int = np.asarray(rho_int)
     delta = np.asarray(delta)
@@ -132,6 +192,7 @@ def plot_rho_int_delta(
             ".-",
             markersize=1.0,
             linewidth=0.5,
+            label="classical (sum)",
         )
 
     elif mode == "mean":
@@ -144,6 +205,7 @@ def plot_rho_int_delta(
             ".-",
             markersize=1.0,
             linewidth=0.5,
+            label="classical (mean)",
         )
 
     elif mode == "each":
@@ -159,17 +221,36 @@ def plot_rho_int_delta(
                 label=f"particle {k}",
             )
 
-        if M > 1:
-            plt.legend()
-
     else:
         raise ValueError(
             "mode must be 'sum', 'mean', or 'each'"
         )
 
+    # Mathematicaから出力した量子スペクトルCSVを同じ図に重ねる
+    if spectrum_csv_path is not None:
+        csv_frequency_MHz, csv_relative_intensity = load_spectrum_csv(
+            spectrum_csv_path
+        )
+
+        plt.plot(
+            csv_frequency_MHz,
+            csv_relative_intensity,
+            "o",
+            linestyle="None",
+            markersize=4.0,
+            label="quantum (CSV)",
+        )
+
+        print("spectrum CSV:", spectrum_csv_path)
+        print(
+            "CSV peak frequency [MHz]:",
+            csv_frequency_MHz[np.argmax(csv_relative_intensity)],
+        )
+
     plt.xlabel("共鳴からの離調周波数(MHz)", fontsize=16)
     plt.ylabel("励起確率(a.u.)", fontsize=16)
     plt.grid(True)
+    plt.legend()
     plt.tight_layout()
 
     plt.savefig(save_path, dpi=200)
@@ -187,7 +268,7 @@ def load_and_plot(run_dir, rho_mode="each"):
     1つのrunフォルダを読み込み、
       1. x-t
       2. T-t
-      3. rho_int-delta
+      3. rho_int-delta + Mathematica spectrum CSV
     の3種類を描画する。
     """
     run_dir = os.path.abspath(run_dir)
@@ -294,6 +375,7 @@ def load_and_plot(run_dir, rho_mode="each"):
     print("v shape :", vM.shape)
     print("rho_int :", rho_int.shape)
     print("delta   :", delta.shape)
+    print("CSV     :", SPECTRUM_CSV_PATH)
 
     # ======================================
     # 1. x-t グラフ
@@ -330,9 +412,7 @@ def load_and_plot(run_dir, rho_mode="each"):
     )
 
     # ======================================
-    # 3. rho_int-delta グラフ
-    # 添付 load_rho_int.py の描画ロジックを踏襲
-    # delta軸だけは保存済み delta.npy を直接使用
+    # 3. rho_int-delta + Mathematica CSV
     # ======================================
 
     rho_plot_path = plot_rho_int_delta(
@@ -340,6 +420,7 @@ def load_and_plot(run_dir, rho_mode="each"):
         delta=delta,
         mode=rho_mode,
         save_dir=fig_dir,
+        spectrum_csv_path=SPECTRUM_CSV_PATH,
     )
 
     print("======================================")

@@ -65,11 +65,51 @@ def normalize_peak(y):
     return y / y_max
 
 
+def load_spectrum_csv(csv_path):
+    """
+    Mathematica から出力した2列CSVを読み込む。
+
+    1列目: 周波数差 [MHz]
+    2列目: 相対強度
+
+    相対強度は最大値が1になるように規格化して返す。
+    """
+    data = np.loadtxt(
+        csv_path,
+        delimiter=",",
+        skiprows=1,
+    )
+    data = np.atleast_2d(data)
+
+    if data.shape[1] < 2:
+        raise ValueError(
+            f"CSV must have at least 2 columns: {csv_path}"
+        )
+
+    frequency_MHz = np.asarray(data[:, 0], dtype=float)
+    relative_intensity = np.asarray(data[:, 1], dtype=float)
+
+    mask = np.isfinite(frequency_MHz) & np.isfinite(relative_intensity)
+    frequency_MHz = frequency_MHz[mask]
+    relative_intensity = relative_intensity[mask]
+
+    if len(frequency_MHz) == 0:
+        raise ValueError(f"No valid spectrum data in CSV: {csv_path}")
+
+    order = np.argsort(frequency_MHz)
+    frequency_MHz = frequency_MHz[order]
+    relative_intensity = relative_intensity[order]
+    relative_intensity = normalize_peak(relative_intensity)
+
+    return frequency_MHz, relative_intensity
+
+
 def load_rho_int_and_plot(
         rho_int_path,
         detuning_num,
         mode="sum",
-        save_dir="./figs"
+        save_dir="./figs",
+        spectrum_csv_path=None,
 ):
     rho_int = np.load(rho_int_path)
 
@@ -106,7 +146,8 @@ def load_rho_int_and_plot(
             rho_plot,
             ".-",
             markersize=1.0,
-            linewidth=0.5
+            linewidth=0.5,
+            label="classical (sum)",
         )
 
     elif mode == "mean":
@@ -118,7 +159,8 @@ def load_rho_int_and_plot(
             rho_plot,
             ".-",
             markersize=1.0,
-            linewidth=0.5
+            linewidth=0.5,
+            label="classical (mean)",
         )
 
     elif mode == "each":
@@ -134,11 +176,33 @@ def load_rho_int_and_plot(
                 rho_each,
                 ".-",
                 markersize=1.0,
-                linewidth=0.5
+                linewidth=0.5,
+                label=f"particle {k}",
             )
 
     else:
         raise ValueError("mode must be 'sum', 'mean', or 'each'")
+
+    # Mathematicaから出力した量子スペクトルCSVを同じ図に重ねる
+    if spectrum_csv_path is not None:
+        csv_frequency_MHz, csv_relative_intensity = load_spectrum_csv(
+            spectrum_csv_path
+        )
+
+        plt.plot(
+            csv_frequency_MHz,
+            csv_relative_intensity,
+            "o",
+            linestyle="None",
+            markersize=4.0,
+            label="quantum (CSV)",
+        )
+
+        print("Loaded spectrum CSV:", spectrum_csv_path)
+        print(
+            "CSV peak frequency [MHz]:",
+            csv_frequency_MHz[np.argmax(csv_relative_intensity)],
+        )
 
     # fwhm_MHz, x_left_MHz, x_right_MHz, half_max = calculate_fwhm(
     #     detuning_MHz,
@@ -148,6 +212,7 @@ def load_rho_int_and_plot(
     plt.xlabel("共鳴からの離調周波数(MHz)", fontsize=16)
     plt.ylabel("励起確率(a.u.)",fontsize=16)
     plt.grid(True)
+    plt.legend()
     plt.tight_layout()
 
     plt.savefig(save_path, dpi=200)
@@ -174,5 +239,5 @@ if __name__ == "__main__":
     load_rho_int_and_plot(
         rho_int_path=rho_int_path,
         detuning_num=detuning_num,
-        mode="each"
+        mode="each",
     )
