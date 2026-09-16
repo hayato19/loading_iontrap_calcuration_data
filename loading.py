@@ -10,6 +10,8 @@ import numpy as np
 from plot.plot_full import plot_full_x
 from plot.plot_t import plot_t
 from plot.calculation_t import T_ratio_with_and_without_COM
+from plot.hist_v import Hist_v
+
 
 
 plt.rcParams["font.family"] = "Meiryo"
@@ -209,17 +211,18 @@ def plot_rho_int_delta(
         )
 
     elif mode == "each":
-        for k in range(M):
-            rho_each = normalize_peak(rho_int[:, k])
+        # for k in range(M):
+        k = 0
+        rho_each = normalize_peak(rho_int[:, k])
 
-            plt.plot(
-                detuning_MHz,
-                rho_each,
-                ".-",
-                markersize=1.0,
-                linewidth=0.5,
-                label=f"particle {k}",
-            )
+        plt.plot(
+            detuning_MHz,
+            rho_each,
+            ".-",
+            markersize=1.0,
+            linewidth=0.5,
+            label=f"classical {k+1}",
+        )
 
     else:
         raise ValueError(
@@ -238,7 +241,8 @@ def plot_rho_int_delta(
             "o",
             linestyle="None",
             markersize=4.0,
-            label="quantum (CSV)",
+            label="quantum",
+            color = "red"
         )
 
         print("spectrum CSV:", spectrum_csv_path)
@@ -410,6 +414,8 @@ def load_and_plot(run_dir, rho_mode="each"):
         n_sum=n_sum,
         save_dir=fig_dir,
     )
+
+    T_fit, T_err = Hist_v(vM,t,2000)
 
     # ======================================
     # 3. rho_int-delta + Mathematica CSV
